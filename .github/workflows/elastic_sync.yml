@@ -11,6 +11,7 @@ on:
 
 jobs:
   elastic-detections-update:
+    if: false
     runs-on: ubuntu-latest
     env:
       ELASTIC_KEY: ${{ secrets.ELASTIC_KEY }}

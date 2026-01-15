@@ -5,6 +5,7 @@ on:
 
 jobs:
   elastic-detections-all:
+    if: false
     runs-on: ubuntu-latest
     env:
       ELASTIC_KEY: ${{ secrets.ELASTIC_KEY }}

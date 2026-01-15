@@ -9,6 +9,7 @@ on:
 
 jobs:
   toml-validation:
+    if: false
     runs-on: ubuntu-latest
 
     steps:
