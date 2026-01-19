@@ -7,4 +7,4 @@ security_group_id = "sg-07addaea55e71d8fb"
 # Note: key_name expects the Name of the key pair. 
 # If 'key-04d682b238aeb9d34' is the ID, you might need to check the actual name in AWS Console.
 # We are proceeding with the provided value.
-key_name          = "key-04d682b238aeb9d34"
+key_name          = "key"
