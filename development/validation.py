@@ -20,8 +20,8 @@ for root, dirs, files in os.walk("detections/"):
 
                 try:
                     if alert['metadata']['creation_date']:
-                       pass 
-                except:
+                       pass
+                except KeyError:
                     print("The metadata table does not contain a creation_date on: " + full_path)
                     failure = 1
                     

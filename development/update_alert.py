@@ -1,63 +1,95 @@
-import requests
+"""
+Update changed TOML detection rules in Elastic Security.
+
+This script is designed to run in CI/CD when detection files change.
+It attempts to PUT (update) first, and falls back to POST (create) if the rule doesn't exist.
+
+Environment Variables:
+    ELASTIC_KEY: API key for Elastic Security
+    CHANGED_FILES: Space or comma-separated list of changed filenames
+"""
 import os
+import sys
 import tomllib
 
-url = "https://detectionengineering101.kb.us-central1.gcp.cloud.es.io:9243/api/detection_engine/rules"
-api_key = os.environ['ELASTIC_KEY']
+import requests
 
-headers = {
-    'Content-Type': 'application/json;charset=UTF-8',
-    'kbn-xsrf': 'true',
-    'Authorization': 'ApiKey ' + api_key
+
+BASE_URL = "https://detectionengineering101.kb.us-central1.gcp.cloud.es.io:9243/api/detection_engine/rules"
+
+REQUIRED_FIELDS_BY_TYPE = {
+    "query": ["author", "description", "name", "rule_id", "risk_score", "severity", "type", "query", "threat"],
+    "eql": ["author", "description", "name", "rule_id", "risk_score", "severity", "type", "query", "language", "threat"],
+    "threshold": ["author", "description", "name", "rule_id", "risk_score", "severity", "type", "query", "threshold", "threat"],
 }
 
-changed_files = os.environ["CHANGED_FILES"]
 
-data = ""
-for root, dirs, files in os.walk("detections/"):
-    for file in files:
-        if file in changed_files:
-            data = "{\n"
-            if file.endswith(".toml"):
-                full_path = os.path.join(root, file)
-                with open(full_path,"rb") as toml:
-                    alert = tomllib.load(toml)
-                if alert['rule']['type'] == "query": # query based alert
-                    required_fields = ['author','description', 'name','rule_id','risk_score','severity','type','query','threat']
-                elif alert['rule']['type'] == "eql": # event correlation alert
-                    required_fields = ['author','description', 'name','rule_id','risk_score','severity','type','query','language','threat']
-                elif alert['rule']['type'] == "threshold": # threshold based alert
-                    required_fields = ['author','description', 'name','rule_id','risk_score','severity','type','query','threshold','threat']
-                else:
-                    print("Unsupported rule type found in: " + full_path)
-                    break
-                
-                for field in alert['rule']:
-                    if field in required_fields:
-                        if type(alert['rule'][field]) == list:
-                            data += "  " + "\"" + field + "\": " + str(alert['rule'][field]).replace("'","\"") + "," + "\n"
-                        elif type(alert['rule'][field]) == str:
-                            if field == 'description':
-                                data += "  " + "\"" + field + "\": \"" + str(alert['rule'][field]).replace("\n"," ").replace("\"","\\\"").replace("\\","\\\\") + "\"," + "\n"
-                            elif field == 'query':
-                                data += "  " + "\"" + field + "\": \"" + str(alert['rule'][field]).replace("\\","\\\\").replace("\"","\\\"").replace("\n"," ") + "\"," + "\n"
-                            else:
-                                data += "  " + "\"" + field + "\": \"" + str(alert['rule'][field]).replace("\n"," ").replace("\"","\\\"") + "\"," + "\n"
-                        elif type(alert['rule'][field]) == int:
-                            data += "  " + "\"" + field + "\": " + str(alert['rule'][field]) + "," + "\n"
-                        elif type(alert['rule'][field]) == dict:
-                            data += "  " + "\"" + field + "\": " + str(alert['rule'][field]).replace("'","\"") + "," + "\n"
+def build_payload(alert: dict) -> dict | None:
+    """Build the JSON payload for Elastic Security API."""
+    rule = alert.get("rule", {})
+    rule_type = rule.get("type")
 
-                data += "  \"enabled\": true\n}"
-            
-            rule_id = alert['rule']['rule_id']
-            url = url + "?rule_id=" + rule_id
-        
-            elastic_data = requests.put(url, headers=headers, data=data).json()
-        
-            for key in elastic_data:
-                if key == "status_code":
-                    if 404 == elastic_data["status_code"]:
-                        elastic_data = requests.post(url, headers=headers, data=data).json()
-                        print(elastic_data)
+    if rule_type not in REQUIRED_FIELDS_BY_TYPE:
+        return None
+
+    required_fields = REQUIRED_FIELDS_BY_TYPE[rule_type]
+    payload = {field: rule[field] for field in required_fields if field in rule}
+    payload["enabled"] = True
+
+    return payload
+
+
+def main():
+    api_key = os.environ.get("ELASTIC_KEY")
+    if not api_key:
+        print("Error: ELASTIC_KEY environment variable not set", file=sys.stderr)
+        sys.exit(1)
+
+    changed_files = os.environ.get("CHANGED_FILES", "")
+    if not changed_files:
+        print("No changed files specified")
+        sys.exit(0)
+
+    headers = {
+        "Content-Type": "application/json;charset=UTF-8",
+        "kbn-xsrf": "true",
+        "Authorization": f"ApiKey {api_key}",
+    }
+
+    for root, dirs, files in os.walk("detections/"):
+        for filename in files:
+            if filename not in changed_files:
+                continue
+            if not filename.endswith(".toml"):
+                continue
+
+            full_path = os.path.join(root, filename)
+            print(f"Processing: {full_path}")
+
+            with open(full_path, "rb") as f:
+                alert = tomllib.load(f)
+
+            payload = build_payload(alert)
+            if payload is None:
+                rule_type = alert.get("rule", {}).get("type", "unknown")
+                print(f"  Skipped: Unsupported rule type '{rule_type}'")
+                continue
+
+            rule_id = alert["rule"]["rule_id"]
+            url = f"{BASE_URL}?rule_id={rule_id}"
+
+            # Try to update first (PUT), create if not found (POST)
+            response = requests.put(url, headers=headers, json=payload)
+            result = response.json()
+
+            if result.get("status_code") == 404:
+                response = requests.post(BASE_URL, headers=headers, json=payload)
+                result = response.json()
+                print(f"  Created: {result.get('name', filename)}")
+            else:
+                print(f"  Updated: {result.get('name', filename)}")
+
+
+if __name__ == "__main__":
+    main()
 

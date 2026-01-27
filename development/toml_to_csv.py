@@ -1,7 +1,7 @@
 import tomllib
 import os
 
-list = {}
+detections = {}
 
 for root, dirs, files in os.walk("detections/"):
     for file in files:
@@ -39,7 +39,7 @@ for root, dirs, files in os.walk("detections/"):
                         obj = {'tactic': tactic, 'technique': technique, 'subtech': subtech, 'subtech': subtech}
                         filtered_object_array.append(obj)
                 obj = {'name': name, 'date': date, 'author': author, 'risk_score': risk_score, 'severity': severity, 'mitre': filtered_object_array}
-                list[file] = obj
+                detections[file] = obj
 
 output_path = "metrics/detectiondata.csv"
 
@@ -47,7 +47,7 @@ outF = open(output_path, "w")
 outF.write("name,date,author,risk_score,severity,tactic,technique,subtechnique\n")
 
 separator = "; "
-for line in list.values():
+for line in detections.values():
     date = line['date']
     name = line['name']
     author = str(line['author']).replace(",",";")
