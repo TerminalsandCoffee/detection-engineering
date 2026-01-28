@@ -11,12 +11,182 @@ provider "aws" {
   region = var.aws_region
 }
 
+# --- IAM Role for SSM ---
+resource "aws_iam_role" "ssm_role" {
+  name = "detection-lab-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "Detection Lab SSM Role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_attach" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm_profile" {
+  name = "detection-lab-ssm-profile"
+  role = aws_iam_role.ssm_role.name
+}
+
+# --- Networking Stack ---
+resource "aws_vpc" "lab_vpc" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "Detection Lab VPC"
+  }
+}
+
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.lab_vpc.id
+  tags = {
+    Name = "Detection Lab IGW"
+  }
+}
+
+resource "aws_subnet" "public_subnet" {
+  vpc_id                  = aws_vpc.lab_vpc.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "${var.aws_region}a"
+  tags = {
+    Name = "Detection Lab Public Subnet"
+  }
+}
+
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.lab_vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+
+  tags = {
+    Name = "Detection Lab Public RT"
+  }
+}
+
+resource "aws_route_table_association" "public_assoc" {
+  subnet_id      = aws_subnet.public_subnet.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_security_group" "lab_sg" {
+  name        = "detection-lab-sg"
+  description = "Allow inbound traffic for Detection Lab"
+  vpc_id      = aws_vpc.lab_vpc.id
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "RDP"
+    from_port   = 3389
+    to_port     = 3389
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "WinRM"
+    from_port   = 5985
+    to_port     = 5986
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Elasticsearch"
+    from_port   = 9200
+    to_port     = 9200
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Kibana"
+    from_port   = 5601
+    to_port     = 5601
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow all internal traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "Detection Lab SG"
+  }
+}
+
 # Kali Linux Instance
 resource "aws_instance" "kali_linux" {
   ami                    = var.kali_ami
-  instance_type          = "t2.medium" # Recommended for GUI usage, adjust as needed (t2.micro is free tier eligible but slow for Kali GUI)
-  vpc_security_group_ids = [var.security_group_id]
+  instance_type          = "t3.medium" # Changed to t3 for UEFI support
+  subnet_id              = aws_subnet.public_subnet.id
+  vpc_security_group_ids = [aws_security_group.lab_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
   key_name               = var.key_name
+
+  user_data = <<-EOF
+              #!/bin/bash
+              set -e
+              exec > /var/log/user-data.log 2>&1
+
+              echo "=== Installing SSM Agent on Kali ==="
+
+              # Wait for network
+              sleep 10
+
+              # Create temp directory
+              cd /tmp
+
+              # Download SSM agent for Debian-based systems
+              wget https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+
+              # Install SSM agent
+              dpkg -i amazon-ssm-agent.deb
+
+              # Enable and start SSM agent
+              systemctl enable amazon-ssm-agent
+              systemctl start amazon-ssm-agent
+
+              echo "=== SSM Agent Installation Complete ==="
+              EOF
 
   tags = {
     Name        = "Kali Linux"
@@ -27,8 +197,10 @@ resource "aws_instance" "kali_linux" {
 # Windows Server Instance
 resource "aws_instance" "windows_server" {
   ami                    = var.windows_ami
-  instance_type          = "t2.medium" # Windows requires at least t2.medium or t3.medium for decent performance
-  vpc_security_group_ids = [var.security_group_id]
+  instance_type          = "t3.medium" # Windows requires at least 4GB RAM. t3 supports UEFI.
+  subnet_id              = aws_subnet.public_subnet.id
+  vpc_security_group_ids = [aws_security_group.lab_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
   key_name               = var.key_name
 
   # Wait for Elastic instance to exist (it will be referenced in user_data)
@@ -132,8 +304,10 @@ resource "aws_instance" "windows_server" {
 # Ubuntu VM Instance (Elastic Stack)
 resource "aws_instance" "ubuntu_vm" {
   ami                    = var.ubuntu_ami
-  instance_type          = "t2.large" # Elasticsearch needs at least 4GB RAM
-  vpc_security_group_ids = [var.security_group_id]
+  instance_type          = "t3.large" # Changed to t3 for UEFI support. Elasticsearch needs at least 4GB RAM
+  subnet_id              = aws_subnet.public_subnet.id
+  vpc_security_group_ids = [aws_security_group.lab_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.ssm_profile.name
   key_name               = var.key_name
 
   user_data = <<-EOF

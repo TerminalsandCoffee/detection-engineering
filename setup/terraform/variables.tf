@@ -19,10 +19,7 @@ variable "ubuntu_ami" {
   type        = string
 }
 
-variable "security_group_id" {
-  description = "Existing Security Group ID to attach to instances"
-  type        = string
-}
+
 
 variable "key_name" {
   description = "Name of the existing Key Pair to use for SSH/RDP access"
