@@ -1,6 +1,9 @@
 # Detection Engineering Fundamentals
 
-A comprehensive repository for creating, managing, and validating security detection rules in TOML format, mapped to the MITRE ATT&CK framework.
+A comprehensive repository for creating, managing, and validating security detection rules in TOML format, mapped to the MITRE ATT&CK framework. Brought to you by Terminals and Coffee. 
+
+<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/a3e85dd0-7987-43a5-926d-7b778484dc9c" />
+
 
 ## Overview
 
