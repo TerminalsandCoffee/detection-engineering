@@ -17,5 +17,6 @@ Documentation on detection engineering concepts and methodologies.
 - **MITRE ATT&CK Mapping**: Aligning detections to adversary tactics, techniques, and procedures (TTPs)
 - **Alert Tuning**: Iterative process of reducing false positives while maintaining detection coverage
 
+<img width="590" height="352" alt="image" src="https://github.com/user-attachments/assets/824fc5d6-3024-4685-a9aa-46f0b0956b1c" />
 
-<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/045c0f24-d8e8-4910-bb43-f808d65c0fb2" />
+
