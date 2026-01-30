@@ -8,7 +8,7 @@ The detection engineering workflow is a repeatable, end-to-end process for creat
 |-------|-------|--------|
 | 1. Requirements | Threat intel, incident reports, hunt findings | Prioritized detection gap |
 | 2. Research | Threat reports, ATT&CK techniques, log sources | Detection hypothesis |
-| 3. Development | Hypothesis, query language, TOML template | Draft detection rule |
+| 3. Development | Hypothesis, query language, Wazuh XML template | Draft detection rule |
 | 4. Testing | Draft rule, sample data, lab environment | Validated detection rule |
 | 5. Deployment | Validated rule, CI/CD pipeline | Production detection |
 | 6. Tuning & Maintenance | Alert feedback, false positive data | Refined detection rule |
@@ -32,8 +32,9 @@ The output of this phase is a **prioritized detection gap** — a clear statemen
 
 With a detection gap identified, research the adversary behavior in depth:
 
-- **Map to MITRE ATT&CK** — Identify the relevant tactic, technique, and sub-technique. This drives both the detection logic and the metadata in the TOML rule file (see `[[rule.threat]]`).
+- **Map to MITRE ATT&CK** — Identify the relevant tactic, technique, and sub-technique. This drives both the detection logic and the metadata in the Wazuh rule file.
 - **Identify data sources** — Determine which logs or telemetry provide visibility into the behavior. Common sources include endpoint logs (Sysmon, EDR), network traffic, authentication logs, and cloud audit trails.
+- **Wazuh Decoder Development** — If the log source is not natively parsed by Wazuh, develop a custom XML decoder (`/detections/decoders/`) to extract relevant fields before rule creation.
 - **Study adversary tradecraft** — Review threat reports, malware samples, and red team tooling to understand how the technique is executed in practice. Look for observable artifacts like process command lines, file paths, registry keys, or network patterns.
 - **Document assumptions** — Write down what conditions must be true for the detection to work (e.g., "Sysmon Process Create events are being collected from all endpoints").
 
@@ -43,36 +44,20 @@ The output is a **detection hypothesis**: a plain-language statement describing 
 
 ## 3. Development
 
-Translate the hypothesis into a detection rule. In this repo, detections follow a standardized TOML format:
+Translate the hypothesis into a detection rule. In this repo, detections follow the **Wazuh XML** format:
 
-```toml
-[metadata]
-creation_date = "YYYY/MM/DD"
-
-[rule]
-author = ["Your Name"]
-description = "Clear description of what the detection identifies"
-from = "now-6m"
-name = "Detection Name"
-risk_score = 50
-severity = "high"
-type = "query"
-rule_id = "unique-uuid"
-query = '''
-your detection query here
-'''
-
-[[rule.threat]]
-framework = "MITRE ATT&CK"
-[[rule.threat.technique]]
-id = "T1059"
-name = "Command and Scripting Interpreter"
-reference = "https://attack.mitre.org/techniques/T1059/"
-
-[rule.threat.tactic]
-id = "TA0002"
-name = "Execution"
-reference = "https://attack.mitre.org/tactics/TA0002/"
+```xml
+<group name="windows, detection_engineering,">
+  <rule id="100002" level="10">
+    <if_sid>60009</if_sid> <!-- Base Sysmon Rule -->
+    <field name="win.eventdata.image">powershell.exe</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(-w hidden|-windowstyle hidden)</field>
+    <description>PowerShell Execution with Hidden Window</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+</group>
 ```
 
 ### What Makes a Good Detection
@@ -89,14 +74,14 @@ Treating detections as code means they follow software engineering practices:
 
 - **Version control** — all rules are stored in Git and changes are tracked through commits
 - **Peer review** — new or modified detections go through pull requests before merging
-- **Validation** — automated scripts (in `development/`) check TOML syntax, required fields, and MITRE ATT&CK mappings
+- **Validation** — automated scripts check XML syntax and MITRE ATT&CK mappings
 - **CI/CD** — GitHub Actions workflows can automate validation on every push (see `.github/workflows/`)
 
 ## 4. Testing
 
 Before a detection reaches production, it must be tested:
 
-- **Unit testing** — use the validation scripts in `development/` to confirm the rule has valid TOML syntax, all required fields are present, and MITRE mappings are correct
+- **Unit testing** — use the validation scripts in `development/` to confirm the rule has valid XML syntax, all required fields are present, and MITRE mappings are correct
 - **Lab validation** — execute the adversary technique in a controlled environment and verify the detection fires. The `setup/` directory contains Terraform configurations for deploying a lab environment
 - **False positive analysis** — run the query against production data (or a representative sample) to identify benign activity that would trigger the rule. Adjust the query logic or add exclusions as needed
 - **Edge case review** — consider variations of the technique that might evade the detection (different tools, obfuscation, alternative execution methods)
