@@ -35,10 +35,13 @@ Security Operations (SecOps) is the practice of continuously monitoring, detecti
 
 Detection engineering sits at the center of the security operations cycle. It consumes input from every other function and produces output that each function depends on:
 
+<img width="420" height="368" alt="image" src="https://github.com/user-attachments/assets/4bc5840c-2227-4b2b-a6d9-656cc45355fb" />
+
+
 ```
                 ┌─────────────────────┐
                 │ Threat Intelligence │
-                │  (TTPs, IoCs, reports) │
+                │(TTPs, IoCs, reports)│
                 └────────┬────────────┘
                          │ informs
                          v
