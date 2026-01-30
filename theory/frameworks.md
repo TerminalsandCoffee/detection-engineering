@@ -29,6 +29,9 @@ Developed by Lockheed Martin, the **Cyber Kill Chain** models the stages an adve
 
 ## MITRE ATT&CK
 
+<img width="577" height="373" alt="image" src="https://github.com/user-attachments/assets/ba854b71-5dd0-46c2-bac2-16810f9072c8" />
+
+
 The **MITRE ATT&CK** (Adversarial Tactics, Techniques, and Common Knowledge) framework is the industry standard for categorizing adversary behavior. It is more granular than the kill chain, organizing behaviors into **tactics** (the "why") and **techniques** (the "how").
 
 ### Structure
@@ -80,6 +83,9 @@ ATT&CK provides separate matrices for different platforms:
 Most detections in this repo target the Enterprise matrix, specifically Windows endpoint telemetry.
 
 ## F3EAD
+
+<img width="486" height="514" alt="image" src="https://github.com/user-attachments/assets/7d7239d0-4aeb-47a5-8683-9c99c8103134" />
+
 
 **F3EAD** (Find, Fix, Finish, Exploit, Analyze, Disseminate) is an intelligence-driven operations cycle originally developed for military targeting. In security operations, it provides a framework for turning threat intelligence into detections and back into refined intelligence.
 
