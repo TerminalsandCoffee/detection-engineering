@@ -4,6 +4,9 @@ Security frameworks provide structured models for understanding adversary behavi
 
 ## The Cyber Kill Chain
 
+<img width="602" height="378" alt="image" src="https://github.com/user-attachments/assets/0172fcf8-9f72-4aea-bf91-3292cf7ffb24" />
+
+
 Developed by Lockheed Martin, the **Cyber Kill Chain** models the stages an adversary moves through during an intrusion. Defenders can use it to identify where detections exist and where gaps remain.
 
 | Stage | Description | Detection Opportunity |
